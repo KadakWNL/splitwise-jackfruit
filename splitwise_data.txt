@@ -1,0 +1,15 @@
+[USERS]
+1|Person1
+2|Person2
+
+[GROUPS]
+1|Trip Goa|1,2
+
+[EXPENSES]
+1|1|1|10000.00|Travel Expenses|17-05-2025|equal|Travel
+
+[SPLITS]
+1|1|5000.00
+1|2|5000.00
+
+[SETTLEMENTS]
