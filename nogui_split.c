@@ -355,7 +355,6 @@ void print_balances(int group_id) {
                     if (splits[j].expense_id == expenses[k].id && expenses[k].group_id == group_id)
                         balance[uid] -= splits[j].amount;
             }
-        // Subtract settlements
         for (int j = 0; j < num_settlements; j++) {
             if (settlements[j].group_id == group_id) {
                 if (settlements[j].payer_id == uid) balance[uid] -= settlements[j].amount;
@@ -420,7 +419,7 @@ void settlements_menu() {
     int receiver; scanf("%d", &receiver); getchar();
     printf("Enter amount: ");
     double amt; scanf("%lf", &amt); getchar();
-    printf("Enter date (YYYY-MM-DD): ");
+    printf("Enter date (DD-MM-YYY)): ");
     char date[16]; fgets(date, sizeof(date), stdin); strcpy(date, trim(date));
     int sid = num_settlements ? settlements[num_settlements-1].id+1 : 1;
     settlements[num_settlements++] = (Settlement){sid, payer, receiver, amt, gid, ""};
