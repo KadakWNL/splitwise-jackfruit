@@ -234,6 +234,16 @@ void add_group_interactive() {
     printf("Group added!\n");
 }
 
+void print_groups() {
+    printf("Groups:\n");
+    for (int i = 0; i < num_groups; i++) {
+        printf("  %d: %s (members: ", groups[i].id, groups[i].name);
+        for (int j = 0; j < groups[i].member_count; j++)
+            printf("%s%s", user_name(groups[i].member_ids[j]), (j+1==groups[i].member_count?"":", "));
+        printf(")\n");
+    }
+}
+
 void add_remove_user_group() {
     print_groups();
     printf("Enter group ID: ");
@@ -259,16 +269,6 @@ void add_remove_user_group() {
         int uid; scanf("%d", &uid); getchar();
         remove_user_from_group(gid, uid);
         printf("User removed from group.\n");
-    }
-}
-
-void print_groups() {
-    printf("Groups:\n");
-    for (int i = 0; i < num_groups; i++) {
-        printf("  %d: %s (members: ", groups[i].id, groups[i].name);
-        for (int j = 0; j < groups[i].member_count; j++)
-            printf("%s%s", user_name(groups[i].member_ids[j]), (j+1==groups[i].member_count?"":", "));
-        printf(")\n");
     }
 }
 
@@ -442,8 +442,9 @@ void settlements_history_menu() {
     }
 }
 
+// Sub-Prob: 8
 int main() {
-    load_data(DATA_FILE);
+    load_data(DATA_FILE); // Sub-Prob: 7
     int choice;
     while (1) {
         printf("\nSplitwise CLI Menu\n"
@@ -461,17 +462,17 @@ int main() {
                "Choice: ");
         scanf("%d", &choice); getchar();
         switch (choice) {
-            case 1: add_user_interactive(); break;
-            case 2: add_group_interactive(); break;
-            case 3: add_remove_user_group(); break;
-            case 4: add_expense_interactive(); break;
-            case 5: print_users(); break;
-            case 6: print_groups(); break;
-            case 7: group_expenses_menu(); break;
-            case 8: balances_menu(); break;
-            case 9: settlements_menu(); break;
-            case 10: settlements_history_menu(); break;
-            case 0: save_data(DATA_FILE); printf("Bye!\n"); return 0;
+            case 1: add_user_interactive(); break; // Sub-Prob: 1
+            case 2: add_group_interactive(); break; // Sub-Prob: 1
+            case 3: add_remove_user_group(); break; // Sub-Prob: 1
+            case 4: add_expense_interactive(); break; // Sub-Prob: 2, 3
+            case 5: print_users(); break; // Sub-Prob: 1
+            case 6: print_groups(); break; // Sub-Prob: 1
+            case 7: group_expenses_menu(); break; // Sub-Prob: 2, 5
+            case 8: balances_menu(); break; // Sub-Prob: 4, 5
+            case 9: settlements_menu(); break; // Sub-Prob: 6 (print function in this -> 4, 5)
+            case 10: settlements_history_menu(); break; // Sub-Prob: 6,5
+            case 0: save_data(DATA_FILE); printf("Bye!\n"); return 0; // Sub-Prob: 7
             default: printf("Invalid choice\n");
         }
         save_data(DATA_FILE);
