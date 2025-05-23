@@ -7,7 +7,7 @@ A simple, console-based expense sharing application inspired by Splitwise, writt
 - Add expenses (who paid, how much, for whom)
 - Track balances between users
 - View how much each person owes or is owed
-- Save and load expenses to/from a file (if your code supports it)
+- Save and load expenses to/from a file
 - Simple command-line interface
 
 ## Getting Started
