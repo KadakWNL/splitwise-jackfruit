@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #define MAX_USERS 100
 #define MAX_GROUPS 50
@@ -28,7 +29,7 @@ typedef struct {
     int paid_by_user_id;
     double amount;
     char description[128];
-    char date[16];
+    char date[16]; // DD-MM-YYYY
     char split_type[16]; // "equal", "custom"
     char category[32];
 } Expense;
@@ -45,7 +46,7 @@ typedef struct {
     int receiver_id;
     double amount;
     int group_id;
-    char date[16];
+    char date[16]; // DD-MM-YYYY
 } Settlement;
 
 User users[MAX_USERS]; int num_users = 0;
@@ -62,93 +63,135 @@ char *trim(char *str) {
     return str;
 }
 
+int is_valid_date(const char *date) {
+    if (strlen(date) != 10) return 0;
+    if (!isdigit(date[0]) || !isdigit(date[1]) || date[2] != '-' ||
+        !isdigit(date[3]) || !isdigit(date[4]) || date[5] != '-' ||
+        !isdigit(date[6]) || !isdigit(date[7]) || !isdigit(date[8]) || !isdigit(date[9]))
+        return 0;
+    int day = atoi(date);
+    int month = atoi(date + 3);
+    int year = atoi(date + 6);
+    if (day < 1 || day > 31) return 0;
+    if (month < 1 || month > 12) return 0;
+    if (year < 1) return 0;
+    return 1;
+}
+
 int parse_member_ids(char *s, int *ids) {
-    int count = 0, id;
+    int count = 0;
     char *tok = strtok(s, ",");
     while (tok && count < MAX_USERS) {
-        id = atoi(trim(tok));
-        ids[count++] = id;
+        ids[count++] = atoi(trim(tok));
         tok = strtok(NULL, ",");
     }
     return count;
 }
 
-void load_data(const char *filename) {
-    FILE *f = fopen(filename, "r");
-    if (!f) return;
-    char line[MAX_LINE], section[32] = "";
-    while (fgets(line, sizeof(line), f)) {
-        char *t = trim(line);
-        if (strlen(t) == 0) continue;
-        if (t[0] == '[') {
-            sscanf(t, "[%31[^]]", section);
-            continue;
-        }
-        if (strcmp(section, "USERS") == 0) {
-            int id; char name[64];
-            if (sscanf(t, "%d|%63[^\n]", &id, name) == 2) {
-                users[num_users++] = (User){id, ""};
-                strncpy(users[num_users - 1].name, trim(name), 63);
-            }
-        } else if (strcmp(section, "GROUPS") == 0) {
-            int id; char name[64], members[256];
-            if (sscanf(t, "%d|%63[^|]|%255[^\n]", &id, name, members) == 3) {
-                groups[num_groups].id = id;
-                strncpy(groups[num_groups].name, trim(name), 63);
-                char m_copy[256]; strncpy(m_copy, members, 255);
-                groups[num_groups].member_count = parse_member_ids(m_copy, groups[num_groups].member_ids);
-                num_groups++;
-            }
-        } else if (strcmp(section, "EXPENSES") == 0) {
-            int id, gid, paid_by; double amt; char desc[128], date[16], stype[16], cat[32];
-            int n = sscanf(t, "%d|%d|%d|%lf|%127[^|]|%15[^|]|%15[^|]|%31[^\n]", &id, &gid, &paid_by, &amt, desc, date, stype, cat);
-            if (n >= 7) {
-                expenses[num_expenses++] = (Expense){id, gid, paid_by, amt, "", "", "", ""};
-                strncpy(expenses[num_expenses-1].description, trim(desc), 127);
-                strncpy(expenses[num_expenses-1].date, trim(date), 15);
-                strncpy(expenses[num_expenses-1].split_type, trim(stype), 15);
-                if (n == 8) strncpy(expenses[num_expenses-1].category, trim(cat), 31);
-            }
-        } else if (strcmp(section, "SPLITS") == 0) {
-            int eid, uid; double amt;
-            if (sscanf(t, "%d|%d|%lf", &eid, &uid, &amt) == 3)
-                splits[num_splits++] = (Split){eid, uid, amt};
-        } else if (strcmp(section, "SETTLEMENTS") == 0) {
-            int id, payer, recv, gid; double amt; char date[16];
-            if (sscanf(t, "%d|%d|%d|%lf|%d|%15s", &id, &payer, &recv, &amt, &gid, date) == 6)
-                settlements[num_settlements++] = (Settlement){id, payer, recv, amt, gid, ""};
-        }
-    }
-    fclose(f);
-}
-
 void save_data(const char *filename) {
     FILE *f = fopen(filename, "w");
     int i, j;
-    fprintf(f, "[USERS]\n");
     for (i = 0; i < num_users; i++)
-        fprintf(f, "%d|%s\n", users[i].id, users[i].name);
+        fprintf(f, "USER|%d|%s\n", users[i].id, users[i].name);
 
-    fprintf(f, "\n[GROUPS]\n");
     for (i = 0; i < num_groups; i++) {
-        fprintf(f, "%d|%s|", groups[i].id, groups[i].name);
+        fprintf(f, "GROUP|%d|%s|", groups[i].id, groups[i].name);
         for (j = 0; j < groups[i].member_count; j++)
             fprintf(f, "%d%s", groups[i].member_ids[j], (j+1==groups[i].member_count?"\n":","));
     }
 
-    fprintf(f, "\n[EXPENSES]\n");
     for (i = 0; i < num_expenses; i++)
-        fprintf(f, "%d|%d|%d|%.2lf|%s|%s|%s|%s\n", expenses[i].id, expenses[i].group_id, expenses[i].paid_by_user_id,
+        fprintf(f, "EXPENSE|%d|%d|%d|%.2lf|%s|%s|%s|%s\n", expenses[i].id, expenses[i].group_id, expenses[i].paid_by_user_id,
                 expenses[i].amount, expenses[i].description, expenses[i].date, expenses[i].split_type, expenses[i].category);
 
-    fprintf(f, "\n[SPLITS]\n");
     for (i = 0; i < num_splits; i++)
-        fprintf(f, "%d|%d|%.2lf\n", splits[i].expense_id, splits[i].user_id, splits[i].amount);
+        fprintf(f, "SPLIT|%d|%d|%.2lf\n", splits[i].expense_id, splits[i].user_id, splits[i].amount);
 
-    fprintf(f, "\n[SETTLEMENTS]\n");
     for (i = 0; i < num_settlements; i++)
-        fprintf(f, "%d|%d|%d|%.2lf|%d|%s\n", settlements[i].id, settlements[i].payer_id, settlements[i].receiver_id,
+        fprintf(f, "SETTLEMENT|%d|%d|%d|%.2lf|%d|%s\n", settlements[i].id, settlements[i].payer_id, settlements[i].receiver_id,
                 settlements[i].amount, settlements[i].group_id, settlements[i].date);
+    fclose(f);
+}
+
+void load_data(const char *filename) {
+    FILE *f = fopen(filename, "r");
+    if (!f) return;
+    char line[MAX_LINE];
+    while (fgets(line, sizeof(line), f)) {
+        char *type = strtok(line, "|");
+        if (!type) continue;
+        if (strcmp(type, "USER") == 0 && num_users < MAX_USERS) {
+            int id; char name[64];
+            char *idstr = strtok(NULL, "|"), *namestr = strtok(NULL, "\n");
+            if (idstr && namestr) {
+                id = atoi(trim(idstr));
+                strncpy(name, trim(namestr), 63);
+                users[num_users++] = (User){id, ""};
+                strncpy(users[num_users-1].name, name, 63);
+            }
+        } else if (strcmp(type, "GROUP") == 0 && num_groups < MAX_GROUPS) {
+            int id; char name[64], members[256];
+            char *idstr = strtok(NULL, "|");
+            char *namestr = strtok(NULL, "|");
+            char *membersstr = strtok(NULL, "\n");
+            if (idstr && namestr && membersstr) {
+                id = atoi(trim(idstr));
+                strncpy(name, trim(namestr), 63);
+                strncpy(members, trim(membersstr), 255); members[255]=0;
+                groups[num_groups].id = id;
+                strncpy(groups[num_groups].name, name, 63);
+                groups[num_groups].member_count = parse_member_ids(members, groups[num_groups].member_ids);
+                num_groups++;
+            }
+        } else if (strcmp(type, "EXPENSE") == 0 && num_expenses < MAX_EXPENSES) {
+            int id, gid, paid_by;
+            double amt;
+            char desc[128], date[16], stype[16], cat[32];
+            char *idstr = strtok(NULL, "|"), *gidstr = strtok(NULL, "|"), *paidbystr = strtok(NULL, "|"),
+                 *amtstr = strtok(NULL, "|"), *descstr = strtok(NULL, "|"), *datestr = strtok(NULL, "|"),
+                 *stypestr = strtok(NULL, "|"), *catstr = strtok(NULL, "\n");
+            if (idstr && gidstr && paidbystr && amtstr && descstr && datestr && stypestr && catstr) {
+                id = atoi(trim(idstr));
+                gid = atoi(trim(gidstr));
+                paid_by = atoi(trim(paidbystr));
+                amt = atof(trim(amtstr));
+                strncpy(desc, trim(descstr), 127);
+                strncpy(date, trim(datestr), 15);
+                strncpy(stype, trim(stypestr), 15);
+                strncpy(cat, trim(catstr), 31);
+                expenses[num_expenses++] = (Expense){id, gid, paid_by, amt, "", "", "", ""};
+                strncpy(expenses[num_expenses-1].description, desc, 127);
+                strncpy(expenses[num_expenses-1].date, date, 15);
+                strncpy(expenses[num_expenses-1].split_type, stype, 15);
+                strncpy(expenses[num_expenses-1].category, cat, 31);
+            }
+        } else if (strcmp(type, "SPLIT") == 0 && num_splits < MAX_SPLITS) {
+            int eid, uid; double amt;
+            char *eidstr = strtok(NULL, "|"), *uidstr = strtok(NULL, "|"), *amtstr = strtok(NULL, "\n");
+            if (eidstr && uidstr && amtstr) {
+                eid = atoi(trim(eidstr));
+                uid = atoi(trim(uidstr));
+                amt = atof(trim(amtstr));
+                splits[num_splits++] = (Split){eid, uid, amt};
+            }
+        } else if (strcmp(type, "SETTLEMENT") == 0 && num_settlements < MAX_SETTLEMENTS) {
+            int id, payer, recv, gid;
+            double amt;
+            char date[16];
+            char *idstr = strtok(NULL, "|"), *payerstr = strtok(NULL, "|"), *recvstr = strtok(NULL, "|"),
+                 *amtstr = strtok(NULL, "|"), *gidstr = strtok(NULL, "|"), *datestr = strtok(NULL, "\n");
+            if (idstr && payerstr && recvstr && amtstr && gidstr && datestr) {
+                id = atoi(trim(idstr));
+                payer = atoi(trim(payerstr));
+                recv = atoi(trim(recvstr));
+                amt = atof(trim(amtstr));
+                gid = atoi(trim(gidstr));
+                strncpy(date, trim(datestr), 15);
+                settlements[num_settlements++] = (Settlement){id, payer, recv, amt, gid, ""};
+                strncpy(settlements[num_settlements-1].date, date, 15);
+            }
+        }
+    }
     fclose(f);
 }
 
@@ -177,6 +220,10 @@ void print_users() {
 }
 
 void add_user_interactive() {
+    if (num_users >= MAX_USERS) {
+        printf("User limit reached!\n");
+        return;
+    }
     char name[64];
     printf("Enter user name: ");
     fgets(name, sizeof(name), stdin);
@@ -210,6 +257,10 @@ void remove_user_from_group(int gid, int uid) {
 }
 
 void add_group_interactive() {
+    if (num_groups >= MAX_GROUPS) {
+        printf("Group limit reached!\n");
+        return;
+    }
     char name[64], members[256];
     int ids[MAX_USERS], count;
     printf("Enter group name: ");
@@ -218,6 +269,12 @@ void add_group_interactive() {
     if(strlen(name)==0) {
         printf("Group name cannot be empty.\n");
         return;
+    }
+    for(int i=0; i<num_groups; ++i) {
+        if(strcmp(groups[i].name, name)==0) {
+            printf("Group with this name already exists.\n");
+            return;
+        }
     }
     print_users();
     printf("Enter comma-separated user IDs for this group: ");
@@ -273,6 +330,10 @@ void add_remove_user_group() {
 }
 
 void add_expense_interactive() {
+    if (num_expenses >= MAX_EXPENSES) {
+        printf("Expense limit reached!\n");
+        return;
+    }
     int gid, paid_by, gidx = -1;
     double amt;
     char desc[128], date[16], stype[16], cat[32];
@@ -289,12 +350,20 @@ void add_expense_interactive() {
     if(!valid) { printf("User not in group.\n"); return; }
     printf("Enter amount: ");
     scanf("%lf", &amt); getchar();
+    if (amt <= 0) {
+        printf("Amount must be positive.\n");
+        return;
+    }
     printf("Description: ");
     fgets(desc, sizeof(desc), stdin); strcpy(desc, trim(desc));
     printf("Category: ");
     fgets(cat, sizeof(cat), stdin); strcpy(cat, trim(cat));
-    printf("Date (YYYY-MM-DD): ");
+    printf("Date (DD-MM-YYYY): ");
     fgets(date, sizeof(date), stdin); strcpy(date, trim(date));
+    if (!is_valid_date(date)) {
+        printf("Invalid date format. Use DD-MM-YYYY.\n");
+        return;
+    }
     printf("Split type (equal/custom): ");
     fgets(stype, sizeof(stype), stdin); strcpy(stype, trim(stype));
     int eid = num_expenses ? expenses[num_expenses - 1].id + 1 : 1;
@@ -305,19 +374,37 @@ void add_expense_interactive() {
     strncpy(expenses[num_expenses].category, cat, 31);
     num_expenses++;
     if (strcmp(stype, "equal") == 0) {
+        if (num_splits + groups[gidx].member_count > MAX_SPLITS) {
+            printf("Split limit reached!\n");
+            num_expenses--;
+            return;
+        }
         double each = amt / groups[gidx].member_count;
         for (int i = 0; i < groups[gidx].member_count; i++)
             splits[num_splits++] = (Split){eid, groups[gidx].member_ids[i], each};
     } else if (strcmp(stype, "custom") == 0) {
         double total = 0, share;
+        if (num_splits + groups[gidx].member_count > MAX_SPLITS) {
+            printf("Split limit reached!\n");
+            num_expenses--;
+            return;
+        }
         for (int i = 0; i < groups[gidx].member_count; i++) {
             printf("Enter amount for %s: ", user_name(groups[gidx].member_ids[i]));
             scanf("%lf", &share); getchar();
+            if(share < 0) {
+                printf("Amount must be non-negative.\n");
+                i--; continue;
+            }
             splits[num_splits++] = (Split){eid, groups[gidx].member_ids[i], share};
             total += share;
         }
-        if (total != amt)
-            printf("Warning: The custom split does not sum up to the total amount!\n");
+        if (total != amt) {
+            printf("Error: Custom split does not sum to total amount! Expense not added.\n");
+            num_expenses--;
+            num_splits -= groups[gidx].member_count;
+            return;
+        }
     }
     printf("Expense added!\n");
 }
@@ -341,51 +428,52 @@ void print_group_expenses(int group_id) {
 }
 
 void print_balances(int group_id) {
-    double balance[MAX_USERS] = {0};
     int gidx = find_group_index(group_id);
     if (gidx == -1) { printf("Group not found.\n"); return; }
-    for (int i = 0; i < groups[gidx].member_count; i++) {
+    int mcount = groups[gidx].member_count;
+    double balance[MAX_USERS] = {0};
+
+    for (int i = 0; i < mcount; i++) {
         int uid = groups[gidx].member_ids[i];
         for (int j = 0; j < num_expenses; j++)
             if (expenses[j].group_id == group_id && expenses[j].paid_by_user_id == uid)
-                balance[uid] += expenses[j].amount;
+                balance[i] += expenses[j].amount;
         for (int j = 0; j < num_splits; j++)
             if (splits[j].user_id == uid) {
                 for (int k = 0; k < num_expenses; k++)
                     if (splits[j].expense_id == expenses[k].id && expenses[k].group_id == group_id)
-                        balance[uid] -= splits[j].amount;
+                        balance[i] -= splits[j].amount;
             }
         for (int j = 0; j < num_settlements; j++) {
             if (settlements[j].group_id == group_id) {
-                if (settlements[j].payer_id == uid) balance[uid] -= settlements[j].amount;
-                if (settlements[j].receiver_id == uid) balance[uid] += settlements[j].amount;
+                if (settlements[j].payer_id == uid) balance[i] += settlements[j].amount;
+                if (settlements[j].receiver_id == uid) balance[i] -= settlements[j].amount;
             }
         }
     }
     printf("Balances for group '%s':\n", groups[gidx].name);
-    for (int i = 0; i < groups[gidx].member_count; i++) {
+    for (int i = 0; i < mcount; i++) {
         int uid = groups[gidx].member_ids[i];
-        printf("  %s: %.2lf\n", user_name(uid), balance[uid]);
+        printf("  %s: %.2lf\n", user_name(uid), balance[i]);
     }
     printf("Suggested settlements:\n");
     double working[MAX_USERS];
     memcpy(working, balance, sizeof(working));
-    for (int loop = 0; loop < groups[gidx].member_count*2; loop++) {
+    for (int loop = 0; loop < mcount*2; loop++) {
         int min_idx = -1, max_idx = -1;
-        for (int i = 0; i < groups[gidx].member_count; i++) {
-            int uid = groups[gidx].member_ids[i];
-            if (min_idx == -1 || working[uid] < working[groups[gidx].member_ids[min_idx]])
-                if (working[uid] < 0) min_idx = i;
-            if (max_idx == -1 || working[uid] > working[groups[gidx].member_ids[max_idx]])
-                if (working[uid] > 0) max_idx = i;
+        for (int i = 0; i < mcount; i++) {
+            if (min_idx == -1 || working[i] < working[min_idx])
+                if (working[i] < 0) min_idx = i;
+            if (max_idx == -1 || working[i] > working[max_idx])
+                if (working[i] > 0) max_idx = i;
         }
         if (min_idx == -1 || max_idx == -1) break;
-        int uid1 = groups[gidx].member_ids[min_idx], uid2 = groups[gidx].member_ids[max_idx];
-        double amt = -working[uid1] < working[uid2] ? -working[uid1] : working[uid2];
+        double amt = -working[min_idx] < working[max_idx] ? -working[min_idx] : working[max_idx];
         if (amt < 0.01) break;
-        printf("  %s pays %s: %.2lf\n", user_name(uid1), user_name(uid2), amt);
-        working[uid1] += amt;
-        working[uid2] -= amt;
+        printf("  %s pays %s: %.2lf\n", user_name(groups[gidx].member_ids[min_idx]),
+                                         user_name(groups[gidx].member_ids[max_idx]), amt);
+        working[min_idx] += amt;
+        working[max_idx] -= amt;
     }
 }
 
@@ -406,6 +494,10 @@ void group_expenses_menu() {
 }
 
 void settlements_menu() {
+    if (num_settlements >= MAX_SETTLEMENTS) {
+        printf("Settlement limit reached!\n");
+        return;
+    }
     print_groups();
     printf("Enter group ID: ");
     int gid;
@@ -419,8 +511,16 @@ void settlements_menu() {
     int receiver; scanf("%d", &receiver); getchar();
     printf("Enter amount: ");
     double amt; scanf("%lf", &amt); getchar();
-    printf("Enter date (DD-MM-YYY)): ");
+    if (amt <= 0) {
+        printf("Settlement amount must be positive.\n");
+        return;
+    }
+    printf("Enter date (DD-MM-YYYY): ");
     char date[16]; fgets(date, sizeof(date), stdin); strcpy(date, trim(date));
+    if (!is_valid_date(date)) {
+        printf("Invalid date format. Use DD-MM-YYYY.\n");
+        return;
+    }
     int sid = num_settlements ? settlements[num_settlements-1].id+1 : 1;
     settlements[num_settlements++] = (Settlement){sid, payer, receiver, amt, gid, ""};
     strncpy(settlements[num_settlements-1].date, date, 15);
@@ -441,9 +541,8 @@ void settlements_history_menu() {
     }
 }
 
-// Sub-Prob: 8
 int main() {
-    load_data(DATA_FILE); // Sub-Prob: 7
+    load_data(DATA_FILE);
     int choice;
     while (1) {
         printf("\nSplitwise CLI Menu\n"
@@ -461,17 +560,17 @@ int main() {
                "Choice: ");
         scanf("%d", &choice); getchar();
         switch (choice) {
-            case 1: add_user_interactive(); break; // Sub-Prob: 1
-            case 2: add_group_interactive(); break; // Sub-Prob: 1
-            case 3: add_remove_user_group(); break; // Sub-Prob: 1
-            case 4: add_expense_interactive(); break; // Sub-Prob: 2, 3
-            case 5: print_users(); break; // Sub-Prob: 1
-            case 6: print_groups(); break; // Sub-Prob: 1
-            case 7: group_expenses_menu(); break; // Sub-Prob: 2, 5
-            case 8: balances_menu(); break; // Sub-Prob: 4, 5
-            case 9: settlements_menu(); break; // Sub-Prob: 6 (print function in this -> 4, 5)
-            case 10: settlements_history_menu(); break; // Sub-Prob: 6,5
-            case 0: save_data(DATA_FILE); printf("Bye!\n"); return 0; // Sub-Prob: 7
+            case 1: add_user_interactive(); break;
+            case 2: add_group_interactive(); break;
+            case 3: add_remove_user_group(); break;
+            case 4: add_expense_interactive(); break;
+            case 5: print_users(); break;
+            case 6: print_groups(); break;
+            case 7: group_expenses_menu(); break;
+            case 8: balances_menu(); break;
+            case 9: settlements_menu(); break;
+            case 10: settlements_history_menu(); break;
+            case 0: save_data(DATA_FILE); printf("Bye!\n"); return 0;
             default: printf("Invalid choice\n");
         }
         save_data(DATA_FILE);
