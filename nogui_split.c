@@ -541,8 +541,9 @@ void settlements_history_menu() {
     }
 }
 
+// Shreyas
 int main() {
-    load_data(DATA_FILE);
+    load_data(DATA_FILE); // Shreyas
     int choice;
     while (1) {
         printf("\nSplitwise CLI Menu\n"
@@ -560,19 +561,19 @@ int main() {
                "Choice: ");
         scanf("%d", &choice); getchar();
         switch (choice) {
-            case 1: add_user_interactive(); break;
-            case 2: add_group_interactive(); break;
-            case 3: add_remove_user_group(); break;
-            case 4: add_expense_interactive(); break;
-            case 5: print_users(); break;
-            case 6: print_groups(); break;
-            case 7: group_expenses_menu(); break;
-            case 8: balances_menu(); break;
-            case 9: settlements_menu(); break;
-            case 10: settlements_history_menu(); break;
+            case 1: add_user_interactive(); break; // Shavanti
+            case 2: add_group_interactive(); break; // Shavanti
+            case 3: add_remove_user_group(); break;  // Shreyas
+            case 4: add_expense_interactive(); break; // Siddhant
+            case 5: print_users(); break; // Shavanti
+            case 6: print_groups(); break; // Skanda
+            case 7: group_expenses_menu(); break; // Siddhant
+            case 8: balances_menu(); break; // Siddhant
+            case 9: settlements_menu(); break; // Skanda
+            case 10: settlements_history_menu(); break; // Skanda
             case 0: save_data(DATA_FILE); printf("Bye!\n"); return 0;
             default: printf("Invalid choice\n");
         }
-        save_data(DATA_FILE);
+        save_data(DATA_FILE); // Shreyas
     }
 }
